@@ -10,6 +10,9 @@ use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Foundation\Exceptions\Handler;
 use Throwable;
 
+use function array_pop;
+use function array_unshift;
+
 /**
  * @internal
  */
@@ -32,6 +35,12 @@ final class ExceptionHandlerResolvedHandler
                  * @see Exception
                  */
                 $handler->reportable(new ReportableHandler($this->watch));
+
+                // Run first: a reporter registered earlier may stop the rest, as Laravel
+                // Cloud's exception tracking does, and Watch would never see the error.
+                (function (): void {
+                    array_unshift($this->reportCallbacks, array_pop($this->reportCallbacks));
+                })->call($handler);
             }
         } catch (Throwable $e) {
             $this->watch->report($e, handled: true);
