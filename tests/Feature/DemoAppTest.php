@@ -377,7 +377,8 @@ it('syncs the schedule and queues heartbeats from a real schedule:run', function
  * billing Lambda invocations forever. This drives a real worker in Vapor mode and counts.
  */
 describe('on Vapor, Watch never queues work for its own jobs', function () {
-    $vapor = ['VAPOR_SSM_PATH' => '/watch-test', 'WATCH_TRANSPORT' => 'http'];
+    // No WATCH_TRANSPORT: on Vapor the default must be http through the queue.
+    $vapor = ['VAPOR_SSM_PATH' => '/watch-test'];
 
     // The http breaker is shared through a temp file across processes; the server-down
     // test opens it, which would make the next run's requests skip sending.

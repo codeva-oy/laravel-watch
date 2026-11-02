@@ -5,8 +5,9 @@ $list = static fn (string $key, string $default): array => array_values(array_fi
 return [
     'enabled' => env('WATCH_ENABLED', true),
     'token' => env('WATCH_TOKEN'),
-    // env() turns WATCH_TRANSPORT=null into a real null.
-    'transport' => env('WATCH_TRANSPORT', 'agent') ?? 'null',
+    // auto: the local agent, except on Vapor, where no agent can run and batches go over
+    // http through the app's own queue. env() turns WATCH_TRANSPORT=null into a real null.
+    'transport' => env('WATCH_TRANSPORT', 'auto') ?? 'null',
     'agent_address' => env('WATCH_AGENT_ADDRESS', '127.0.0.1:2408'),
     'agent_listen' => env('WATCH_AGENT_LISTEN', '127.0.0.1:2408'),
     'server_url' => env('WATCH_SERVER_URL'),

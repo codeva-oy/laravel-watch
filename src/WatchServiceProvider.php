@@ -262,7 +262,7 @@ final class WatchServiceProvider extends ServiceProvider
         return $this->isRequest
             && ! isset($_SERVER['LARAVEL_OCTANE'])
             && $this->enabled()
-            && ($this->watchConfig['transport'] ?? 'agent') === 'agent'
+            && $this->transport() === 'agent'
             && ! ($this->watchConfig['fallback_http'] ?? false)
             && CircuitBreaker::forAgent($this->agentAddress())->isOpen();
     }
@@ -367,13 +367,25 @@ final class WatchServiceProvider extends ServiceProvider
         ));
     }
 
+    /** agent, http or null; auto (the default) means http on Vapor and the agent elsewhere. */
+    private function transport(): string
+    {
+        $transport = (string) ($this->watchConfig['transport'] ?? 'auto');
+
+        if ($transport === 'auto') {
+            return $this->platform->isVapor() ? 'http' : 'agent';
+        }
+
+        return $transport;
+    }
+
     private function makeIngest(): IngestContract
     {
         $token = (string) ($this->watchConfig['token'] ?? '');
         $buffer = new RecordsBuffer(length: $this->watchConfig['ingest']['buffer_size'] ?? 500);
         $address = $this->agentAddress();
 
-        $ingest = match ($this->watchConfig['transport'] ?? 'agent') {
+        $ingest = match ($this->transport()) {
             'null' => new NullIngest,
             'http' => new HttpIngest($buffer, $this->httpSender()),
             default => new AgentIngest(

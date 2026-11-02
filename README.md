@@ -232,7 +232,7 @@ All settings are in `config/watch.php`, driven by env:
 | `WATCH_ENABLED` | `true` | |
 | `WATCH_TOKEN` | | Project token |
 | `WATCH_SERVER_URL` | | |
-| `WATCH_TRANSPORT` | `agent` | `agent`, `http` or `null` |
+| `WATCH_TRANSPORT` | `auto` | `agent`, `http` or `null`; `auto` is `http` on Vapor and `agent` elsewhere |
 | `WATCH_AGENT_ADDRESS` | `127.0.0.1:2408` | Where the app sends; a Unix socket path also works |
 | `WATCH_AGENT_LISTEN` | `127.0.0.1:2408` | Where the agent binds |
 | `WATCH_FALLBACK_HTTP` | `false` | |
