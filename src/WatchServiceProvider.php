@@ -248,11 +248,20 @@ final class WatchServiceProvider extends ServiceProvider
      * a request pays for this check and no hooks. Long-running processes keep
      * theirs: they would never get them back when the agent recovers.
      */
+    /**
+     * Off without a token, so an app with the package installed but not configured
+     * (locally, in CI) records nothing and never tries to reach an agent.
+     */
+    private function enabled(): bool
+    {
+        return (bool) ($this->watchConfig['enabled'] ?? true) && ($this->watchConfig['token'] ?? '') !== '';
+    }
+
     private function shouldStandBy(): bool
     {
         return $this->isRequest
             && ! isset($_SERVER['LARAVEL_OCTANE'])
-            && ($this->watchConfig['enabled'] ?? true)
+            && $this->enabled()
             && ($this->watchConfig['transport'] ?? 'agent') === 'agent'
             && ! ($this->watchConfig['fallback_http'] ?? false)
             && CircuitBreaker::forAgent($this->agentAddress())->isOpen();
@@ -338,7 +347,7 @@ final class WatchServiceProvider extends ServiceProvider
             uuid: $uuid,
             sampleRate: $this->sampleRate,
             config: [
-                'enabled' => $this->watchConfig['enabled'] ?? true,
+                'enabled' => $this->enabled(),
                 'sampling' => [
                     'requests' => $this->watchConfig['sampling']['requests'] ?? 1.0,
                     'commands' => $this->watchConfig['sampling']['commands'] ?? 1.0,
