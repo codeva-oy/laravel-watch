@@ -26,7 +26,7 @@ Then run the agent for your platform, below, and check the whole path:
 ```bash
 php artisan watch:test    # sends a test exception and waits for the agent to reach the server
 php artisan watch:status  # agent buffer, spool and last successful send
-php artisan watch:sync-schedule  # run on every deploy, see Heartbeats
+php artisan watch:sync-schedule  # run on every deploy, see Heartbeats; warns but never fails a deploy (--strict to fail)
 ```
 
 ## Running the agent

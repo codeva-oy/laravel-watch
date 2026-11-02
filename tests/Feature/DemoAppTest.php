@@ -454,3 +454,16 @@ it('stops the agent on queue:restart, so a deploy can start it on the new releas
     expect(waitUntil(fn () => ! proc_get_status($agent)['running'], 15))->toBeTrue()
         ->and(file_get_contents("{$this->dir}/artisan-agent.log"))->toContain('Restart requested');
 });
+
+it('never fails a deploy hook when Watch is unreachable, unless --strict', function () {
+    $env = ['WATCH_SERVER_URL' => 'http://127.0.0.1:1'];
+
+    [$code, $output] = artisan($this, ['watch:sync-schedule'], $env);
+    expect($code)->toBe(0)->and($output)->toContain('Watch server unreachable');
+
+    [$strict] = artisan($this, ['watch:sync-schedule', '--strict'], $env);
+    expect($strict)->toBe(1);
+
+    [$noToken] = artisan($this, ['watch:sync-schedule'], ['WATCH_TOKEN' => '']);
+    expect($noToken)->toBe(0);
+});
