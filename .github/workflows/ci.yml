@@ -25,3 +25,20 @@ jobs:
       - run: vendor/bin/phpstan analyse
         if: matrix.laravel == '13'
       - run: vendor/bin/pest
+
+  # Installs the package into a fresh Laravel app, which catches dependency
+  # conflicts with what real apps lock (psr/http-message 2.0 broke react/http).
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { path: package }
+      - uses: shivammathur/setup-php@v2
+        with: { php-version: '8.5', coverage: none }
+      - run: composer create-project laravel/laravel app --no-interaction --prefer-dist
+      - working-directory: app
+        run: |
+          composer config repositories.watch '{"type": "path", "url": "../package", "options": {"symlink": false}}'
+          composer require "codeva/laravel-watch:*@dev" --no-interaction
+          php artisan watch:install --token=cw_ci --url=https://watch.example.test --no-interaction
+          php artisan about --only=environment

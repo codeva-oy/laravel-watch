@@ -5,11 +5,8 @@ declare(strict_types=1);
 namespace Codeva\Watch\Agent;
 
 use Codeva\Watch\Transport\AgentIngest;
-use Psr\Http\Message\ResponseInterface;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\TimerInterface;
-use React\Http\Browser;
-use React\Http\Message\ResponseException;
 use React\Socket\ConnectionInterface;
 use React\Socket\SocketServer;
 use RuntimeException;
@@ -73,17 +70,16 @@ final class Agent
 
     private readonly bool $requireHmac;
 
-    private readonly Browser $browser;
+    private readonly HttpPoster $http;
 
     public function __construct(
         private readonly LoopInterface $loop,
         private readonly AgentConfig $config,
         private readonly Spool $spool,
-        ?Browser $browser = null,
     ) {
         $this->tokenHash = substr(hash('xxh128', $config->token), 0, 7);
         $this->requireHmac = ! AgentIngest::isLoopback($config->listen);
-        $this->browser = ($browser ?? new Browser(null, $loop))->withTimeout($config->requestTimeout);
+        $this->http = new HttpPoster($loop, $config->requestTimeout);
     }
 
     public function start(): void
@@ -274,18 +270,18 @@ final class Agent
         $id = $this->nextRequestId++;
         $this->inFlight[$id] = $gzipped;
 
-        $this->browser->post($this->config->serverUrl.'/api/ingest', [
+        $this->http->post($this->config->serverUrl.'/api/ingest', [
             'Authorization' => "Bearer {$this->config->token}",
             'Content-Encoding' => 'gzip',
             'Content-Type' => 'application/json',
             'X-Watch-Server' => $this->config->serverName,
             'X-Watch-Agent-Version' => $this->config->version,
-        ], $gzipped)->then(function (ResponseInterface $response) use ($id, $onSuccess): void {
+        ], $gzipped)->then(function (int $status) use ($id, $onSuccess): void {
             unset($this->inFlight[$id]);
 
             $this->lastSuccessAt = microtime(true);
             $this->backoff = self::BACKOFF_MIN;
-            $this->log('DEBUG', 'Ingest accepted: '.$response->getStatusCode());
+            $this->log('DEBUG', 'Ingest accepted: '.$status);
 
             if ($onSuccess !== null) {
                 $onSuccess();
@@ -302,8 +298,8 @@ final class Agent
 
     private function noteFailure(Throwable $e): void
     {
-        if ($e instanceof ResponseException && $e->getResponse()->getStatusCode() === 429) {
-            $retryAfter = max(1, (int) $e->getResponse()->getHeaderLine('Retry-After'));
+        if ($e instanceof HttpStatusException && $e->status === 429) {
+            $retryAfter = max(1, (int) $e->retryAfter);
 
             $this->pausedUntil = microtime(true) + $retryAfter;
             $this->backoff = max($this->backoff, (float) $retryAfter);
