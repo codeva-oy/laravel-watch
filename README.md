@@ -79,7 +79,7 @@ WantedBy=multi-user.target
 sudo systemctl enable --now watch-agent
 ```
 
-On SIGTERM the agent writes what it holds to the spool, and sends it after restarting. Restart it on deploy if you want it on the new release; it speaks a versioned protocol, so an older agent keeps working with a newer app.
+On SIGTERM the agent writes what it holds to the spool, and sends it after restarting. It also stops on `php artisan queue:restart` (within 5 seconds), so a deploy script that already restarts queues puts the agent on the new release too; its process manager starts it again. An older agent keeps working with a newer app, as the wire protocol is versioned.
 
 ### Laravel Cloud
 

@@ -443,3 +443,14 @@ describe('on Vapor, Watch never queues work for its own jobs', function () {
             ->and($pending($this))->toBe(0);
     });
 });
+
+it('stops the agent on queue:restart, so a deploy can start it on the new release', function () {
+    $port = freePort();
+    $agent = proc_open([PHP_BINARY, 'artisan', 'watch:agent'], [1 => ['file', "{$this->dir}/artisan-agent.log", 'a'], 2 => ['file', "{$this->dir}/artisan-agent.log", 'a']], $pipes, DEMO, demoEnv($this, ['WATCH_AGENT_LISTEN' => "127.0.0.1:{$port}"]));
+    expect(waitUntil(fn () => portOpen($port), 10))->toBeTrue();
+
+    artisan($this, ['queue:restart']);
+
+    expect(waitUntil(fn () => ! proc_get_status($agent)['running'], 15))->toBeTrue()
+        ->and(file_get_contents("{$this->dir}/artisan-agent.log"))->toContain('Restart requested');
+});

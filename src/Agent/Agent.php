@@ -346,6 +346,12 @@ final class Agent
         });
     }
 
+    /** Flushes what it holds to the spool and stops, as on SIGTERM. */
+    public function stop(): void
+    {
+        $this->shutdown();
+    }
+
     private function shutdown(): void
     {
         if ($this->stopping) {

@@ -8,7 +8,9 @@ use Codeva\Watch\Agent\Agent;
 use Codeva\Watch\Agent\AgentConfig;
 use Codeva\Watch\Agent\Spool;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use React\EventLoop\Loop;
+use Throwable;
 
 use function config;
 use function gethostname;
@@ -43,11 +45,31 @@ final class AgentCommand extends Command
         }
 
         $loop = Loop::get();
+        $agent = new Agent($loop, $config, new Spool($config->spoolPath, $config->spoolCapBytes));
+        $agent->start();
 
-        (new Agent($loop, $config, new Spool($config->spoolPath, $config->spoolCapBytes)))->start();
+        // `php artisan queue:restart` on deploy: spool what is held and exit, so the
+        // process manager starts the agent again on the new release.
+        $restartedAt = $this->restartSignal();
+        $loop->addPeriodicTimer(5.0, function () use ($agent, $restartedAt, $loop): void {
+            if ($this->restartSignal() !== $restartedAt) {
+                $this->components->info('Restart requested (queue:restart); stopping.');
+                $agent->stop();
+                $loop->stop();
+            }
+        });
 
         $loop->run();
 
         return self::SUCCESS;
+    }
+
+    private function restartSignal(): mixed
+    {
+        try {
+            return Cache::get('illuminate:queue:restart');
+        } catch (Throwable) {
+            return null;
+        }
     }
 }
