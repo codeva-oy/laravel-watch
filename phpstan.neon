@@ -1,0 +1,14 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+parameters:
+    level: 8
+    paths: [src]
+    ignoreErrors:
+        # Optional integrations: each class is only touched when the host app
+        # has the package, and none of the three belongs in require-dev.
+        - identifier: class.notFound
+          message: '#Livewire\\#'
+        - identifier: class.notFound
+          message: '#Laravel\\Octane\\#'
+        - identifier: class.notFound
+          message: '#Spatie\\LaravelIgnition\\#'

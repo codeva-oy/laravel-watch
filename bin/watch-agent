@@ -1,0 +1,37 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Codeva\Watch\Agent\Agent;
+use Codeva\Watch\Agent\AgentConfig;
+use Codeva\Watch\Agent\Spool;
+use React\EventLoop\Loop;
+
+$root = null;
+
+foreach ([__DIR__.'/../vendor/autoload.php', __DIR__.'/../../../autoload.php', getcwd().'/vendor/autoload.php'] as $file) {
+    if (is_file($file)) {
+        $root = dirname($file, 2);
+        require $file;
+        break;
+    }
+}
+
+if ($root === null) {
+    fwrite(STDERR, "Unable to find Composer's autoloader\n");
+    exit(1);
+}
+
+$config = AgentConfig::fromEnv($_SERVER + $_ENV, $root, in_array('--verbose', $argv, true));
+
+if ($config->token === '' || $config->serverUrl === '') {
+    fwrite(STDERR, "WATCH_TOKEN and WATCH_SERVER_URL must be set\n");
+    exit(1);
+}
+
+$loop = Loop::get();
+
+(new Agent($loop, $config, new Spool($config->spoolPath, $config->spoolCapBytes)))->start();
+
+$loop->run();
