@@ -6,15 +6,13 @@ Requires PHP 8.3+ and Laravel 12 or 13.
 
 ## Install
 
-The package is private, so add its GitHub repository to the app's `composer.json` first:
+Until the package is on Packagist, add its GitHub repository to the app's `composer.json`:
 
 ```json
 "repositories": [
     { "type": "vcs", "url": "https://github.com/codeva-oy/laravel-watch" }
 ]
 ```
-
-Composer then needs read access to that repository: locally through your own GitHub login, and on servers through a GitHub token (`composer config -g github-oauth.github.com <token>`) or Forge's GitHub integration.
 
 ```bash
 composer require codeva/laravel-watch
@@ -251,4 +249,4 @@ All settings are in `config/watch.php`, driven by env:
 
 ## License
 
-MIT. `codeva/laravel-watch` is forked from laraowl/client, itself derived from [laravel/nightwatch](https://github.com/laravel/nightwatch). Their notices are kept in [LICENSE-laraowl.md](LICENSE-laraowl.md) and [LICENSE-nightwatch.md](LICENSE-nightwatch.md). The transport and truncation design borrow patterns from [spatie/flare-client-php](https://github.com/spatie/flare-client-php).
+MIT, see [LICENSE.md](LICENSE.md). `codeva/laravel-watch` is forked from laraowl/client, itself derived from [laravel/nightwatch](https://github.com/laravel/nightwatch). Their notices are kept in [LICENSE-laraowl.md](LICENSE-laraowl.md) and [LICENSE-nightwatch.md](LICENSE-nightwatch.md). The transport and truncation design borrow patterns from [spatie/flare-client-php](https://github.com/spatie/flare-client-php).

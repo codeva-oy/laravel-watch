@@ -1,7 +1,25 @@
 {
     "name": "codeva/laravel-watch",
-    "description": "Codeva Watch client package and local agent for Laravel applications.",
+    "description": "Laravel client and local agent for Codeva Watch: errors, performance, logs, scheduler heartbeats and health checks, sent to your own Watch server.",
+    "keywords": [
+        "laravel",
+        "monitoring",
+        "error-tracking",
+        "apm",
+        "observability"
+    ],
+    "homepage": "https://github.com/codeva-oy/laravel-watch",
     "license": "MIT",
+    "authors": [
+        {
+            "name": "Codeva Oy",
+            "homepage": "https://codeva.fi"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/codeva-oy/laravel-watch/issues",
+        "source": "https://github.com/codeva-oy/laravel-watch"
+    },
     "type": "library",
     "require": {
         "php": "^8.3",
@@ -28,10 +46,34 @@
     "suggest": {
         "spatie/laravel-health": "GET /watch/health reuses its checks when installed"
     },
-    "autoload": { "psr-4": { "Codeva\\Watch\\": "src/" } },
-    "autoload-dev": { "psr-4": { "Codeva\\Watch\\Tests\\": "tests/" } },
-    "bin": ["bin/watch-agent"],
-    "extra": { "laravel": { "providers": ["Codeva\\Watch\\WatchServiceProvider"], "aliases": { "Watch": "Codeva\\Watch\\Facades\\Watch" } } },
+    "autoload": {
+        "psr-4": {
+            "Codeva\\Watch\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Codeva\\Watch\\Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/watch-agent"
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Codeva\\Watch\\WatchServiceProvider"
+            ],
+            "aliases": {
+                "Watch": "Codeva\\Watch\\Facades\\Watch"
+            }
+        }
+    },
     "minimum-stability": "stable",
-    "config": { "allow-plugins": { "pestphp/pest-plugin": true }, "sort-packages": true }
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    }
 }
