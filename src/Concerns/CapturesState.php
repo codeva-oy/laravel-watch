@@ -52,6 +52,7 @@ use function preg_match;
 use function preg_split;
 use function random_int;
 use function str_replace;
+use function str_starts_with;
 use function trim;
 
 /**
@@ -709,16 +710,29 @@ trait CapturesState
      */
     public function prepareForJob(Job $job): void
     {
+        // Read the dispatcher's decision before anything resets the context: on Vapor,
+        // prepareForNextJob() resumes recording, which would overwrite it.
+        $dispatcherSampled = Compatibility::getSamplingFromContext();
+        $dispatcherRate = Compatibility::getSampleRateFromContext();
+
         if ($this->isVapor()) {
             $this->prepareForNextJob();
+        }
+
+        // Watch's own jobs are never recorded. If they were, sending a batch would make a
+        // batch, and on a queue transport (Vapor) every send would queue another forever.
+        if (str_starts_with($job->resolveName(), 'Codeva\\Watch\\Jobs\\')) {
+            $this->applySampling(false, 0.0);
+
+            return;
         }
 
         // A job runs only if its dispatcher was sampled, and then at the job rate.
         $jobRate = $this->config['sampling']['jobs'];
 
         $this->applySampling(
-            Compatibility::getSamplingFromContext() && $this->roll($jobRate),
-            Compatibility::getSampleRateFromContext() * $jobRate,
+            $dispatcherSampled && $this->roll($jobRate),
+            $dispatcherRate * $jobRate,
         );
 
         $state = $this->executionState;

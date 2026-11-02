@@ -370,3 +370,76 @@ it('syncs the schedule and queues heartbeats from a real schedule:run', function
     // The demo's cache is real and shared: do not leave the stub's tokens in it.
     artisan($this, ['cache:clear']);
 });
+
+/*
+ * On Vapor there is no agent: every batch becomes a SendBatch job on the app's own queue.
+ * If Watch recorded those jobs, each would queue another and the queue would never drain,
+ * billing Lambda invocations forever. This drives a real worker in Vapor mode and counts.
+ */
+describe('on Vapor, Watch never queues work for its own jobs', function () {
+    $vapor = ['VAPOR_SSM_PATH' => '/watch-test', 'WATCH_TRANSPORT' => 'http'];
+
+    // The http breaker is shared through a temp file across processes; the server-down
+    // test opens it, which would make the next run's requests skip sending.
+    beforeEach(fn () => (new CircuitBreaker(name: 'http'))->close());
+    afterEach(fn () => (new CircuitBreaker(name: 'http'))->close());
+
+    // Counted with Watch off, so the check itself queues nothing.
+    $pending = fn (object $t): int => (int) trim(artisan($t, ['tinker', '--execute=echo DB::table("jobs")->count();'], ['WATCH_ENABLED' => 'false'])[1]);
+    $batches = fn (object $t): int => is_file("{$t->dir}/hits") ? count(array_filter(explode("\n", file_get_contents("{$t->dir}/hits")))) : 0;
+
+    // Runs the worker until the queue is empty; returns how many runs that took.
+    $drain = function (object $t) use ($vapor, $pending): int {
+        for ($run = 1; $run <= 6; $run++) {
+            artisan($t, ['queue:work', 'database', '--stop-when-empty', '--max-time=20'], $vapor);
+
+            if ($pending($t) === 0) {
+                return $run;
+            }
+        }
+
+        return $run;
+    };
+
+    it('drains the queue: one batch per request and per app job, then nothing', function () use ($vapor, $pending, $batches, $drain) {
+        startDemo($this, $vapor);
+        artisan($this, ['queue:clear', 'database'], ['WATCH_ENABLED' => 'false']);
+
+        hit($this, '/demo');
+        hit($this, '/dispatch');
+        hit($this, '/boom');
+
+        // Batches are queued after each response is sent: 3 SendBatch jobs and the DemoJob.
+        // Wait before counting: the demo's SQLite database locks while it is being read.
+        sleep(2);
+        expect($pending($this))->toBe(4);
+
+        $runs = $drain($this);
+        $delivered = $batches($this);
+
+        // Another worker pass must find nothing and send nothing.
+        artisan($this, ['queue:work', 'database', '--stop-when-empty', '--max-time=20'], $vapor);
+
+        expect($runs)->toBeLessThanOrEqual(2)       // requests and the app job, then the app job's own batch
+            ->and($pending($this))->toBe(0)
+            ->and($batches($this))->toBe($delivered)
+            // 3 requests and the app job's own batch. Nothing for SendBatch.
+            ->and($delivered)->toBe(4)
+            ->and(recordsFor($this, fn ($r) => $r['t'] === 'request'))->not->toBeEmpty()
+            ->and(array_filter(accepted($this->dir), fn ($r) => $r['t'] === 'job' && str_contains($r['name'] ?? '', 'SendBatch')))->toBeEmpty();
+    });
+
+    it('also drains while the Watch server is down', function () use ($vapor, $pending, $drain) {
+        file_put_contents("{$this->dir}/mode", '503');
+        startDemo($this, $vapor);
+        artisan($this, ['queue:clear', 'database'], ['WATCH_ENABLED' => 'false']);
+
+        hit($this, '/demo');
+        hit($this, '/boom');
+        sleep(2);
+        expect($pending($this))->toBe(2);
+
+        expect($drain($this))->toBeLessThanOrEqual(2)
+            ->and($pending($this))->toBe(0);
+    });
+});
