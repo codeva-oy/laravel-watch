@@ -37,6 +37,8 @@ use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\ErrorHandler\Error\FatalError;
+use Symfony\Component\HttpFoundation\Exception\RequestExceptionInterface;
+use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 use WeakMap;
@@ -316,6 +318,12 @@ trait CapturesState
     public function report(Throwable $e, ?bool $handled = null): void
     {
         if (! $this->enabled()) {
+            return;
+        }
+
+        // Laravel never reports these (they are in its internal dontReport list):
+        // they come from malformed client input, not from a fault in the app.
+        if ($e instanceof RequestExceptionInterface) {
             return;
         }
 
@@ -630,8 +638,16 @@ trait CapturesState
      */
     public function captureRequestPreview(Request $request): void
     {
+        // A malformed method override (_method or X-HTTP-Method-Override) makes
+        // getMethod() throw. Fall back to the method that was actually sent.
+        try {
+            $method = $request->getMethod();
+        } catch (SuspiciousOperationException) {
+            $method = $request->getRealMethod();
+        }
+
         $this->executionState->executionPreview = Str::tinyText(
-            $request->getMethod().' '.$request->getBaseUrl().$request->getPathInfo()
+            $method.' '.$request->getBaseUrl().$request->getPathInfo()
         );
     }
 
