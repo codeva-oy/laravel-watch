@@ -14,6 +14,11 @@ return [
     'fallback_http' => env('WATCH_FALLBACK_HTTP', false),
     'http_queue' => env('WATCH_HTTP_QUEUE'),
     'health_secret' => env('WATCH_HEALTH_SECRET'),
+    // Public key from the project's Web Vitals page in Watch; @watchVitals adds the script.
+    'vitals' => [
+        'key' => env('WATCH_VITALS_KEY'),
+        'sample' => (float) env('WATCH_SAMPLE_VITALS', 1.0),
+    ],
     'log_level' => env('WATCH_LOG_LEVEL', 'warning'),
 
     'environment' => [

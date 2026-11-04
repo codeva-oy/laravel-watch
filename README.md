@@ -183,6 +183,24 @@ Tasks get 5 minutes of grace (`WATCH_SCHEDULE_GRACE`). To set it per task:
 Schedule::command('reports:send')->daily()->watchGrace(30);
 ```
 
+## Web Vitals
+
+Watch can measure Core Web Vitals (LCP, INP, CLS, FCP and TTFB) in your visitors' browsers. Copy the key from the project's **Web Vitals** page in Watch, set it, and put the directive in the `<head>` of your layout:
+
+```dotenv
+WATCH_VITALS_KEY=wv_...
+WATCH_SAMPLE_VITALS=1.0   # optional: 0.25 measures a quarter of page views
+```
+
+```blade
+<head>
+    ...
+    @watchVitals
+</head>
+```
+
+The directive renders nothing while the key or `WATCH_SERVER_URL` is missing, so it is safe in layouts that also run locally. The script sends the path without its query string, whether the screen is small, and the five numbers: no cookies and nothing about the visitor. The key is public by design; it can only add measurements. With a Content Security Policy, allow `script-src` and `connect-src` for the Watch server.
+
 ## Sampling
 
 Requests, commands, jobs, scheduled tasks and exceptions each have a rate, 1.0 by default: `WATCH_SAMPLE_REQUESTS`, `_COMMANDS`, `_JOBS`, `_SCHEDULED_TASKS` and `_EXCEPTIONS`. Records carry the rate they were sampled at. An exception in an unsampled request still sends the exception and a minimal request record.

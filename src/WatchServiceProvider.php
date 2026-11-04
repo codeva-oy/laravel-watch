@@ -210,6 +210,9 @@ final class WatchServiceProvider extends ServiceProvider
 
             $this->loadRoutesFrom(__DIR__.'/../routes/watch.php');
 
+            // @watchVitals in a layout's head: real visitors' Core Web Vitals (WATCH_VITALS_KEY).
+            $this->callAfterResolving('blade.compiler', fn ($blade) => $blade->directive('watchVitals', fn () => '<?php echo \\Codeva\\Watch\\Support\\Vitals::tag(); ?>'));
+
             if ($this->app->runningInConsole()) {
                 $this->registerPublications();
                 $this->registerCommands();
