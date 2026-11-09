@@ -35,6 +35,7 @@ final class AgentCommand extends Command
             listen: (string) ($watch['agent_listen'] ?? '127.0.0.1:2408'),
             spoolPath: storage_path('watch-spool'),
             serverName: (string) ($watch['environment']['server_name'] ?? gethostname()),
+            version: AgentConfig::installedVersion(),
             verbose: $this->output->isVerbose(),
         );
 

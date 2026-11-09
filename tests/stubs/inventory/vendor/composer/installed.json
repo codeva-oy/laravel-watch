@@ -1,0 +1,11 @@
+{
+    "packages": [
+        {"name": "laravel/framework", "version": "v13.40.0", "version_normalized": "13.40.0.0", "type": "library"},
+        {"name": "monolog/monolog", "version": "3.9.0", "version_normalized": "3.9.0.0", "type": "library"},
+        {"name": "pestphp/pest", "version": "v4.1.0", "version_normalized": "4.1.0.0", "type": "library"},
+        {"name": "acme/shop", "version": "dev-main", "type": "project"},
+        {"name": "monolog/monolog", "version": "3.9.0", "version_normalized": "3.9.0.0", "type": "library"}
+    ],
+    "dev": true,
+    "dev-package-names": ["pestphp/pest"]
+}

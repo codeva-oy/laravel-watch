@@ -32,6 +32,9 @@ final class ScheduledTask
     /** @var WeakMap<Event, int>|null */
     private static ?WeakMap $grace = null;
 
+    /** @var WeakMap<Event, true>|null */
+    private static ?WeakMap $internal = null;
+
     public static function setGrace(Event $event, int $minutes): void
     {
         self::$grace ??= new WeakMap;
@@ -41,6 +44,21 @@ final class ScheduledTask
     public static function grace(Event $event, int $default): int
     {
         return self::$grace[$event] ?? $default;
+    }
+
+    /**
+     * Watch's own tasks are kept out of the schedule sync and send no heartbeats,
+     * so an app that runs no scheduler is not expected to run them.
+     */
+    public static function markInternal(Event $event): void
+    {
+        self::$internal ??= new WeakMap;
+        self::$internal[$event] = true;
+    }
+
+    public static function isInternal(Event $event): bool
+    {
+        return isset(self::$internal[$event]);
     }
 
     public static function name(Event $event): string

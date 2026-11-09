@@ -67,6 +67,13 @@ return [
         'grace_minutes' => (int) env('WATCH_SCHEDULE_GRACE', 5),
     ],
 
+    // Daily PHP, Laravel, OS and package versions, for the versions table and
+    // vulnerability alerts. Empty schedule: daily at a time derived from the app key.
+    'inventory' => [
+        'enabled' => env('WATCH_INVENTORY', true),
+        'schedule' => env('WATCH_INVENTORY_SCHEDULE'),
+    ],
+
     'ingest' => [
         'buffer_size' => (int) env('WATCH_INGEST_BUFFER', 500),
     ],

@@ -27,6 +27,7 @@ Then run the agent for your platform, below, and check the whole path:
 php artisan watch:test    # sends a test exception and waits for the agent to reach the server
 php artisan watch:status  # agent buffer, spool and last successful send
 php artisan watch:sync-schedule  # run on every deploy, see Heartbeats; warns but never fails a deploy (--strict to fail)
+php artisan watch:inventory      # run on every deploy, see Inventory & vulnerability alerts; also warns, never fails
 ```
 
 ## Running the agent
@@ -183,6 +184,27 @@ Tasks get 5 minutes of grace (`WATCH_SCHEDULE_GRACE`). To set it per task:
 Schedule::command('reports:send')->daily()->watchGrace(30);
 ```
 
+## Inventory & vulnerability alerts
+
+The client tells Watch what each app runs on: its PHP version and extensions, Laravel version, OS and kernel, every Composer package from `vendor/composer/installed.json` and every npm package from `package-lock.json` (lockfile versions 2 and 3, nested copies included). Watch shows them as a versions table across your apps, and checks the packages against known vulnerabilities and the runtimes against their end-of-life dates.
+
+Nothing is executed to build it: the files are only read, so there is no `composer` or `npm` run on the server. Without a `package-lock.json` no npm packages are sent. Package names and versions, the server name and the environment are all that leave the app; no paths, lockfile hashes or env values.
+
+Add it to your deploy script next to the schedule sync, after `composer install`, so a deploy that changes a package is reflected straight away:
+
+```bash
+php artisan watch:sync-schedule
+php artisan watch:inventory
+```
+
+It also runs once a day from the app's scheduler, so new advisories are matched even when nothing is deployed. The time is derived from the app key, so apps sharing a server do not all send at once; set a cron expression with `WATCH_INVENTORY_SCHEDULE` to choose it, or turn the daily run off with `WATCH_INVENTORY=false`. It is only scheduled when `WATCH_TOKEN` and `WATCH_SERVER_URL` are set, and an app that runs no scheduler simply sends it on each deploy. This task is left out of the schedule sync and sends no heartbeats, so it never shows up as a missed run.
+
+Like `watch:sync-schedule`, it warns instead of failing when the server cannot be reached (`--strict` to fail). To see exactly what would be sent:
+
+```bash
+php artisan watch:inventory --show
+```
+
 ## Web Vitals
 
 Watch can measure Core Web Vitals (LCP, INP, CLS, FCP and TTFB) in your visitors' browsers. Copy the key from the project's **Web Vitals** page in Watch, set it, and put the directive in the `<head>` of your layout:
@@ -264,6 +286,8 @@ All settings are in `config/watch.php`, driven by env:
 | `WATCH_CAPTURE_PAYLOAD` | `false` | |
 | `WATCH_REDACT_FIELDS`, `WATCH_REDACT_HEADERS` | See config | |
 | `WATCH_HEALTH_SECRET` | | Without it `/watch/health` is a 404 |
+| `WATCH_INVENTORY` | `true` | Send the inventory daily from the scheduler |
+| `WATCH_INVENTORY_SCHEDULE` | derived | Cron expression; by default a daily time derived from the app key |
 
 ## License
 

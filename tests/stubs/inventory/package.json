@@ -1,0 +1,5 @@
+{
+    "private": true,
+    "dependencies": {"axios": "^1.7"},
+    "devDependencies": {"vite": "^6.0", "str": "npm:string-width@^4"}
+}

@@ -45,6 +45,10 @@ final class ScheduleSync
         $grace = (int) $this->config->get('watch.schedule.grace_minutes', 5);
 
         foreach ($this->schedule->events() as $event) {
+            if (ScheduledTask::isInternal($event)) {
+                continue;
+            }
+
             $timezone = $event->timezone ?? $this->config->get('app.timezone', 'UTC');
 
             $tasks[] = [

@@ -11,6 +11,8 @@ file_put_contents("{$dir}/requests", json_encode([
     'path' => $_SERVER['REQUEST_URI'],
     'authorization' => $_SERVER['HTTP_AUTHORIZATION'] ?? '',
     'encoding' => $_SERVER['HTTP_CONTENT_ENCODING'] ?? '',
+    'type' => $_SERVER['CONTENT_TYPE'] ?? '',
+    'accept' => $_SERVER['HTTP_ACCEPT'] ?? '',
     'server' => $_SERVER['HTTP_X_WATCH_SERVER'] ?? '',
     'agent' => $_SERVER['HTTP_X_WATCH_AGENT_VERSION'] ?? '',
     'body' => str_starts_with($path, '/api/ingest') ? '' : $raw,
@@ -20,6 +22,14 @@ if ($path === '/api/schedule-sync') {
     header('Content-Type: application/json');
     $tasks = json_decode($raw, true)['tasks'] ?? [];
     echo json_encode(['heartbeats' => array_combine(array_column($tasks, 'name'), array_map(fn ($i) => "ping{$i}", array_keys($tasks)))]);
+
+    return;
+}
+
+if ($path === '/api/inventory') {
+    http_response_code((int) $mode);
+    header('Content-Type: application/json');
+    echo json_encode(['accepted' => (int) $mode === 202]);
 
     return;
 }
@@ -36,6 +46,10 @@ if ($path !== '/api/ingest') {
     return;
 }
 
+// "split" answers 413 to any batch of more than one record, like a server whose size cap it exceeds.
+if ($mode === 'split') {
+    $mode = count(json_decode(gzdecode($raw) ?: $raw, true) ?: []) > 1 ? '413' : '202';
+}
 file_put_contents("{$dir}/hits", json_encode([$_SERVER['HTTP_AUTHORIZATION'] ?? '', $_SERVER['HTTP_CONTENT_ENCODING'] ?? '', $mode])."\n", FILE_APPEND);
 if ((int) $mode === 429) {
     header('Retry-After: 1');

@@ -47,6 +47,7 @@ use Codeva\Watch\Records\QueuedJob;
 use Codeva\Watch\Records\Request;
 use Codeva\Watch\State\CommandState;
 use Codeva\Watch\State\RequestState;
+use Codeva\Watch\Support\Inventory;
 use Codeva\Watch\Support\Platform;
 use Codeva\Watch\Support\ScheduledTask;
 use Codeva\Watch\Support\Uuid;
@@ -75,6 +76,7 @@ use Illuminate\Cache\Events\WritingManyKeys;
 use Illuminate\Console\Events\ArtisanStarting;
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Console\Scheduling\Event;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Bus\Dispatcher as Bus;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Contracts\Config\Repository;
@@ -111,6 +113,7 @@ use function array_keys;
 use function array_values;
 use function class_exists;
 use function defined;
+use function is_string;
 use function microtime;
 
 /**
@@ -163,6 +166,7 @@ final class WatchServiceProvider extends ServiceProvider
      *         redact_headers?: list<string>,
      *     },
      *     ingest?: array{ buffer_size?: int },
+     *     inventory?: array{ enabled?: bool, schedule?: string|null },
      *  }
      */
     private array $watchConfig;
@@ -217,6 +221,7 @@ final class WatchServiceProvider extends ServiceProvider
                 $this->registerPublications();
                 $this->registerCommands();
                 $this->registerScheduleMacro();
+                $this->registerInventorySchedule();
             }
         } catch (Throwable $e) {
             Watch::unrecoverableExceptionOccurred($e);
@@ -460,6 +465,7 @@ final class WatchServiceProvider extends ServiceProvider
         $this->commands([
             Console\AgentCommand::class,
             Console\InstallCommand::class,
+            Console\InventoryCommand::class,
             Console\StatusCommand::class,
             Console\SyncScheduleCommand::class,
             Console\TestCommand::class,
@@ -473,6 +479,28 @@ final class WatchServiceProvider extends ServiceProvider
             ScheduledTask::setGrace($this, $minutes);
 
             return $this;
+        });
+    }
+
+    /**
+     * Sends the inventory once a day from the app's own scheduler. An app that
+     * runs no scheduler never resolves it, and still sends one on each deploy.
+     */
+    private function registerInventorySchedule(): void
+    {
+        if (! $this->enabled() || empty($this->watchConfig['server_url']) || ! ($this->watchConfig['inventory']['enabled'] ?? true)) {
+            return;
+        }
+
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $cron = $this->watchConfig['inventory']['schedule'] ?? null;
+            $seed = $this->config->get('app.key') ?: $this->config->get('app.name');
+
+            $event = $schedule->command('watch:inventory')
+                ->cron(is_string($cron) && $cron !== '' ? $cron : Inventory::dailyCron(is_string($seed) ? $seed : 'laravel'))
+                ->description('Send the PHP, Laravel, OS and package versions to Watch');
+
+            ScheduledTask::markInternal($event);
         });
     }
 

@@ -1,0 +1,6 @@
+{
+    "name": "acme/shop",
+    "require": {
+        "laravel/framework": "^13.0"
+    }
+}

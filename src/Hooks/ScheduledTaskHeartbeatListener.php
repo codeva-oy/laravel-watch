@@ -43,7 +43,7 @@ final class ScheduledTaskHeartbeatListener
     {
         try {
             // Both events fire for a failed console task; only Failed counts.
-            if ($this->isFinishedEventForFailedTask($event)) {
+            if (ScheduledTask::isInternal($event->task) || $this->isFinishedEventForFailedTask($event)) {
                 return;
             }
 
