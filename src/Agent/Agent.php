@@ -12,13 +12,20 @@ use React\Socket\SocketServer;
 use RuntimeException;
 use Throwable;
 
+use function array_is_list;
+use function array_slice;
 use function count;
 use function date;
 use function deflate_add;
 use function deflate_init;
 use function function_exists;
+use function gzdecode;
 use function gzencode;
 use function hash;
+use function in_array;
+use function intdiv;
+use function is_array;
+use function json_decode;
 use function json_encode;
 use function max;
 use function microtime;
@@ -39,6 +46,9 @@ final class Agent
     private const float BACKOFF_MAX = 300.0;
 
     private const int COMPRESS_CHUNK_BYTES = 65_536;
+
+    /** Statuses for which resending the same batch can never succeed. */
+    private const array PERMANENT_STATUSES = [400, 413, 422];
 
     private string $buffer = '';
 
@@ -258,14 +268,40 @@ final class Agent
 
         $this->post($gzipped, onSuccess: null, onFailure: function () use ($gzipped): void {
             $this->spool->put($gzipped);
+        }, onRejected: function (int $status) use ($gzipped): void {
+            $this->reject($gzipped, $status);
         });
+    }
+
+    /**
+     * Handles a batch the server will never accept as is. A batch that is too
+     * large is split in half and sent again; anything else is dropped, so it
+     * cannot block every later batch in the spool.
+     */
+    private function reject(string $gzipped, int $status): void
+    {
+        $records = $status === 413 ? json_decode((string) gzdecode($gzipped), true) : null;
+
+        if (is_array($records) && array_is_list($records) && count($records) > 1) {
+            $this->log('WARNING', 'Ingest rejected a batch of '.count($records).' records as too large; splitting it.');
+
+            $half = intdiv(count($records), 2);
+
+            $this->deliver((string) gzencode((string) json_encode(array_slice($records, 0, $half))));
+            $this->deliver((string) gzencode((string) json_encode(array_slice($records, $half))));
+
+            return;
+        }
+
+        $this->log('ERROR', "Ingest rejected a batch with HTTP {$status}; dropping it.");
     }
 
     /**
      * @param  (callable(): void)|null  $onSuccess
      * @param  callable(): void  $onFailure
+     * @param  callable(int): void  $onRejected
      */
-    private function post(string $gzipped, ?callable $onSuccess, callable $onFailure): void
+    private function post(string $gzipped, ?callable $onSuccess, callable $onFailure, callable $onRejected): void
     {
         $id = $this->nextRequestId++;
         $this->inFlight[$id] = $gzipped;
@@ -286,8 +322,14 @@ final class Agent
             if ($onSuccess !== null) {
                 $onSuccess();
             }
-        }, function (Throwable $e) use ($id, $onFailure): void {
+        }, function (Throwable $e) use ($id, $onFailure, $onRejected): void {
             unset($this->inFlight[$id]);
+
+            if ($e instanceof HttpStatusException && in_array($e->status, self::PERMANENT_STATUSES, true)) {
+                $onRejected($e->status);
+
+                return;
+            }
 
             $this->noteFailure($e);
             $onFailure();
@@ -343,6 +385,10 @@ final class Agent
             $this->scheduleRetry(0.0);
         }, onFailure: static function (): void {
             // The file is still on disk; the shared failure path reschedules.
+        }, onRejected: function (int $status) use ($file, $gzipped): void {
+            $this->spool->delete($file);
+            $this->reject($gzipped, $status);
+            $this->scheduleRetry(0.0);
         });
     }
 

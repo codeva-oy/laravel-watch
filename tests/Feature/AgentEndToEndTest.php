@@ -71,6 +71,33 @@ it('honours 429 and later delivers', function () {
     expect(waitUntil(fn () => count(accepted($this->dir)) === 1, 10))->toBeTrue();
 });
 
+it('splits a batch the server refuses as too large', function () {
+    file_put_contents("{$this->dir}/mode", 'split');
+
+    $ingest = client($this);
+    foreach (range(1, 4) as $n) {
+        $ingest->write(['t' => 'query', 'n' => $n]);
+    }
+    $ingest->digest();
+
+    expect(waitUntil(fn () => count(accepted($this->dir)) === 4, 10))->toBeTrue()
+        ->and(glob("{$this->dir}/spool/*.gz"))->toBe([]);
+});
+
+it('drops a batch the server will never accept instead of retrying it forever', function () {
+    file_put_contents("{$this->dir}/mode", '422');
+    client($this)->writeNow(['t' => 'query', 'n' => 1]);
+
+    expect(waitUntil(fn () => str_contains((string) @file_get_contents($this->agentLog), 'dropping it')))->toBeTrue()
+        ->and(glob("{$this->dir}/spool/*.gz"))->toBe([]);
+
+    file_put_contents("{$this->dir}/mode", '202');
+    client($this)->writeNow(['t' => 'query', 'n' => 2]);
+
+    expect(waitUntil(fn () => count(accepted($this->dir)) === 1, 10))->toBeTrue()
+        ->and(accepted($this->dir)[0]['n'] ?? null)->toBe(2);
+});
+
 it('flushes the buffer to the spool on SIGTERM and resends after restart', function () {
     proc_terminate($this->agent, 9);
     usleep(100_000);
