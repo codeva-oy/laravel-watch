@@ -63,6 +63,8 @@ use function usort;
  *     agent_version: string,
  *     environment: string,
  *     server: string,
+ *     platform: string|null,
+ *     deploy: string|null,
  *     php: array{version: string, extensions: list<string>},
  *     framework: array{name: string, version: string},
  *     os: Os,
@@ -107,6 +109,10 @@ final class Inventory
             'agent_version' => AgentConfig::installedVersion(),
             'environment' => self::text((string) $this->config->get('app.env', 'production')),
             'server' => self::text($this->serverName()),
+            // So the server can tell a Cloud deploy job and the containers that replace each
+            // other from separate servers; their hostnames change with every deploy.
+            'platform' => $this->platform(),
+            'deploy' => $this->deploy(),
             'php' => [
                 'version' => PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION.'.'.PHP_RELEASE_VERSION,
                 'extensions' => self::extensions(get_loaded_extensions()),
@@ -315,6 +321,25 @@ final class Inventory
 
         // macOS, Windows and the BSDs have no os-release.
         return ['name' => self::text(php_uname('s')) ?: PHP_OS_FAMILY, 'version' => null, 'pretty' => null];
+    }
+
+    private function platform(): ?string
+    {
+        $platform = Platform::fromEnvironment();
+
+        return match (true) {
+            $platform->isCloud() => 'cloud',
+            $platform->isVapor() => 'vapor',
+            default => null,
+        };
+    }
+
+    private function deploy(): ?string
+    {
+        $configured = $this->config->get('watch.environment.deploy_id');
+        $deploy = is_string($configured) && $configured !== '' ? $configured : Platform::fromEnvironment()->deploy();
+
+        return $deploy === '' ? null : self::text($deploy);
     }
 
     private function serverName(): string

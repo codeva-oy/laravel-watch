@@ -188,7 +188,7 @@ Schedule::command('reports:send')->daily()->watchGrace(30);
 
 The client tells Watch what each app runs on: its PHP version and extensions, Laravel version, OS and kernel, every Composer package from `vendor/composer/installed.json` and every npm package from `package-lock.json` (lockfile versions 2 and 3, nested copies included). Watch shows them as a versions table across your apps, and checks the packages against known vulnerabilities and the runtimes against their end-of-life dates.
 
-Nothing is executed to build it: the files are only read, so there is no `composer` or `npm` run on the server. Without a `package-lock.json` no npm packages are sent. Package names and versions, the server name and the environment are all that leave the app; no paths, lockfile hashes or env values.
+Nothing is executed to build it: the files are only read, so there is no `composer` or `npm` run on the server. Without a `package-lock.json` no npm packages are sent. Package names and versions, the server name, the environment, the platform (`cloud` or `vapor`) and the deploy id are all that leave the app; no paths, lockfile hashes or other env values. On Laravel Cloud, where every deploy and container gets a new hostname, the server uses the platform to keep one row per environment.
 
 Add it to your deploy script next to the schedule sync, after `composer install`, so a deploy that changes a package is reflected straight away:
 

@@ -64,6 +64,18 @@ it('posts the inventory to the server with the project token', function () {
         ->and($body['npm'])->toHaveCount(8);
 });
 
+it('says where the app runs and which deploy, so the server can fold Cloud hostnames together', function () {
+    $port = freePort();
+    $this->stub = startStub($this->dir, $port);
+    useInventoryServer("http://127.0.0.1:{$port}");
+    config(['watch.environment.deploy_id' => 'depl-a330b5b2']);
+    putenv('LARAVEL_CLOUD=1');
+
+    $this->artisan('watch:inventory')->assertSuccessful();
+
+    expect(json_decode(stubRequests($this->dir)[0]['body'], true))->toMatchArray(['platform' => 'cloud', 'deploy' => 'depl-a330b5b2']);
+})->after(fn () => putenv('LARAVEL_CLOUD'));
+
 it('warns but succeeds when the server fails or cannot be reached', function () {
     $port = freePort();
     $this->stub = startStub($this->dir, $port);
