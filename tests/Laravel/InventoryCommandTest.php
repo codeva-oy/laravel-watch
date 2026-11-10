@@ -110,6 +110,45 @@ it('schedules the inventory daily when Watch is configured', function () {
         ->and(Queue::pushed(SendHeartbeat::class))->toBeEmpty();
 })->after(fn () => putenv('WATCH_SERVER_URL'));
 
+it('sends again within minutes once anything in the inventory changed, as after a deploy', function () {
+    $port = freePort();
+    $this->stub = startStub($this->dir, $port);
+    useInventoryServer("http://127.0.0.1:{$port}");
+    config(['cache.default' => 'file']);
+    app('cache')->store('file')->flush();
+
+    $this->artisan('watch:inventory --if-changed')->assertSuccessful();
+    $this->artisan('watch:inventory --if-changed')->assertSuccessful();
+
+    expect(stubRequests($this->dir))->toHaveCount(1);
+
+    config(['app.env' => 'staging']);
+    $this->artisan('watch:inventory --if-changed')->assertSuccessful();
+
+    expect(stubRequests($this->dir))->toHaveCount(2);
+});
+
+it('leaves change checks to the daily send when the cache forgets between runs', function () {
+    $port = freePort();
+    $this->stub = startStub($this->dir, $port);
+    useInventoryServer("http://127.0.0.1:{$port}");
+    config(['cache.default' => 'array']);
+
+    $this->artisan('watch:inventory --if-changed')->assertSuccessful();
+
+    expect(stubRequests($this->dir))->toBe([]);
+});
+
+it('checks for a changed inventory every five minutes, without a record each time', function () {
+    putenv('WATCH_SERVER_URL=https://watch.test');
+    $this->refreshApplication();
+
+    $event = collect(app(Schedule::class)->events())->first(fn ($event) => str_contains($event->command, 'watch:inventory --if-changed'));
+
+    expect($event?->expression)->toBe('*/5 * * * *')
+        ->and(app(ScheduleSync::class)->tasks())->toBe([]);
+})->after(fn () => putenv('WATCH_SERVER_URL'));
+
 it('schedules nothing without a server or with the inventory turned off', function (array $env) {
     foreach ($env as $key => $value) {
         putenv("{$key}={$value}");

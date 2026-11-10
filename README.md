@@ -197,6 +197,8 @@ php artisan watch:sync-schedule
 php artisan watch:inventory
 ```
 
+Apps that run the scheduler also send it by themselves after a deploy: every five minutes `watch:inventory --if-changed` compares the inventory with the last one sent (kept in the app's cache) and only sends when something changed, so the versions table is current within five minutes of a deploy without a deploy hook. Unchanged checks record nothing. With the `array` or `null` cache store this check is skipped, as it would send every time.
+
 It also runs once a day from the app's scheduler, so new advisories are matched even when nothing is deployed. The time is derived from the app key, so apps sharing a server do not all send at once; set a cron expression with `WATCH_INVENTORY_SCHEDULE` to choose it, or turn the daily run off with `WATCH_INVENTORY=false`. It is only scheduled when `WATCH_TOKEN` and `WATCH_SERVER_URL` are set, and an app that runs no scheduler simply sends it on each deploy. This task is left out of the schedule sync and sends no heartbeats, so it never shows up as a missed run.
 
 Like `watch:sync-schedule`, it warns instead of failing when the server cannot be reached (`--strict` to fail). To see exactly what would be sent:

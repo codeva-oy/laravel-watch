@@ -483,8 +483,9 @@ final class WatchServiceProvider extends ServiceProvider
     }
 
     /**
-     * Sends the inventory once a day from the app's own scheduler. An app that
-     * runs no scheduler never resolves it, and still sends one on each deploy.
+     * Sends the inventory once a day from the app's own scheduler, and within five
+     * minutes of anything in it changing, such as after a deploy. An app that runs no
+     * scheduler never resolves it, and sends one from its deploy hook instead.
      */
     private function registerInventorySchedule(): void
     {
@@ -501,6 +502,13 @@ final class WatchServiceProvider extends ServiceProvider
                 ->description('Send the PHP, Laravel, OS and package versions to Watch');
 
             ScheduledTask::markInternal($event);
+
+            $changed = $schedule->command('watch:inventory --if-changed')
+                ->everyFiveMinutes()
+                ->description('Send the inventory to Watch when it changed');
+
+            ScheduledTask::markInternal($changed);
+            $this->core->sampleScheduledTask($changed, 0.0);
         });
     }
 
