@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Codeva\Watch\Agent;
 
 use Codeva\Watch\Transport\AgentIngest;
+use DeflateContext;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\TimerInterface;
 use React\Socket\ConnectionInterface;
@@ -52,7 +53,7 @@ final class Agent
 
     private string $buffer = '';
 
-    /** @var array<int, string> batches being compressed, by id */
+    /** @var array<int, array{json: string, context: DeflateContext, offset: int, gzipped: string}> batches being compressed, by id */
     private array $compressing = [];
 
     private int $nextCompressionId = 0;
@@ -221,40 +222,48 @@ final class Agent
      * Compresses a piece per loop tick. This process holds every app worker's
      * connection, and one gzencode() of a full buffer stalls them all for the
      * length of it, which is what the benchmark's p99 showed.
+     *
+     * The state lives in $compressing rather than in a closure that schedules
+     * itself: such a closure is a reference cycle holding the whole batch, and
+     * PHP's cycle collector only runs once thousands of cycles pile up, while a
+     * few dozen full batches already exhaust the memory limit.
      */
     private function compress(string $json): void
     {
-        $id = $this->nextCompressionId++;
-        $this->compressing[$id] = $json;
-
         $context = deflate_init(ZLIB_ENCODING_GZIP);
 
         if ($context === false) {
             throw new RuntimeException('zlib could not start a gzip stream');
         }
 
-        $offset = 0;
-        $gzipped = '';
+        $id = $this->nextCompressionId++;
+        $this->compressing[$id] = ['json' => $json, 'context' => $context, 'offset' => 0, 'gzipped' => ''];
 
-        $step = function () use (&$step, $id, $json, $context, &$offset, &$gzipped): void {
-            if ($this->stopping) {
-                return;
-            }
+        $this->loop->futureTick(fn () => $this->compressNextChunk($id));
+    }
 
-            $finished = $offset + self::COMPRESS_CHUNK_BYTES >= strlen($json);
+    private function compressNextChunk(int $id): void
+    {
+        if ($this->stopping || ! isset($this->compressing[$id])) {
+            return;
+        }
 
-            $gzipped .= (string) deflate_add($context, substr($json, $offset, self::COMPRESS_CHUNK_BYTES), $finished ? ZLIB_FINISH : ZLIB_NO_FLUSH);
-            $offset += self::COMPRESS_CHUNK_BYTES;
+        $batch = &$this->compressing[$id];
+        $finished = strlen($batch['json']) <= $batch['offset'] + self::COMPRESS_CHUNK_BYTES;
 
-            if ($finished) {
-                unset($this->compressing[$id]);
-                $this->deliver($gzipped);
-            } else {
-                $this->loop->futureTick($step);
-            }
-        };
+        $batch['gzipped'] .= (string) deflate_add($batch['context'], substr($batch['json'], $batch['offset'], self::COMPRESS_CHUNK_BYTES), $finished ? ZLIB_FINISH : ZLIB_NO_FLUSH);
+        $batch['offset'] += self::COMPRESS_CHUNK_BYTES;
 
-        $this->loop->futureTick($step);
+        if (! $finished) {
+            $this->loop->futureTick(fn () => $this->compressNextChunk($id));
+
+            return;
+        }
+
+        $gzipped = $batch['gzipped'];
+        unset($batch, $this->compressing[$id]);
+
+        $this->deliver($gzipped);
     }
 
     private function deliver(string $gzipped): void
@@ -418,8 +427,8 @@ final class Agent
             $this->buffer = '';
         }
 
-        foreach ($this->compressing as $json) {
-            $this->spool->put((string) gzencode($json));
+        foreach ($this->compressing as $batch) {
+            $this->spool->put((string) gzencode($batch['json']));
         }
 
         $this->compressing = [];
