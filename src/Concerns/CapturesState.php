@@ -31,6 +31,7 @@ use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobQueued;
 use Illuminate\Queue\Events\JobQueueing;
 use Illuminate\Queue\Events\JobReleasedAfterException;
+use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Routing\Route;
 use Monolog\LogRecord;
 use Psr\Http\Message\RequestInterface;
@@ -324,6 +325,13 @@ trait CapturesState
         // Laravel never reports these (they are in its internal dontReport list):
         // they come from malformed client input, not from a fault in the app.
         if ($e instanceof RequestExceptionInterface) {
+            return;
+        }
+
+        // Watch's own jobs run once and drop the batch on failure. A queue that
+        // delivers one again (SQS does, at least once) or a worker that dies in it
+        // is no fault in the app, so neither is reported as one.
+        if ($e instanceof MaxAttemptsExceededException && self::isWatchJob($e->job)) {
             return;
         }
 
@@ -721,6 +729,11 @@ trait CapturesState
         memory_reset_peak_usage();
     }
 
+    private static function isWatchJob(?Job $job): bool
+    {
+        return $job !== null && str_starts_with($job->resolveName(), 'Codeva\\Watch\\Jobs\\');
+    }
+
     /**
      * @internal
      */
@@ -737,7 +750,7 @@ trait CapturesState
 
         // Watch's own jobs are never recorded. If they were, sending a batch would make a
         // batch, and on a queue transport (Vapor) every send would queue another forever.
-        if (str_starts_with($job->resolveName(), 'Codeva\\Watch\\Jobs\\')) {
+        if (self::isWatchJob($job)) {
             $this->applySampling(false, 0.0);
 
             return;
